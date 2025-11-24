@@ -1,0 +1,5 @@
+﻿metric_en,metric_cn,value,rate
+Total Rows,总行数,43689,1.0
+Valid Date Rows,有效日期行数,43689,1.0
+Duplicate Rows,重复行数,0,0.0
+Missing Value Rows,缺失值行数,41125,0.9413124585135847

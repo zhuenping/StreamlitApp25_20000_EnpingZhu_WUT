@@ -1,0 +1,7 @@
+﻿kpi_en,kpi_cn,value,unit,desc_en,desc_cn
+Total Cases,总病例数,873887,Cases | 例,"Total cases in [2023, 2024]","[2023, 2024]年累计病例数"
+Average Vaccine Coverage,平均疫苗覆盖率,0.2008972510242853,Ratio | 比例,Avg vaccination rate,筛选人群平均接种率
+High-Risk Population,高危人群数（66+岁+慢性病）,4585,People | 人,Elderly (66+) with chronic conditions,66岁以上且患慢性病的重点人群
+Average Resource Load,平均医疗资源负荷,0.09999999999999999,Ratio | 比例,Hospital demand / capacity,住院需求/医院容量（>1表示资源不足）
+Peak Season Cases,峰值季节病例数,251552,Cases | 例,Max cases in Spring,春季（Spring）病例数最高
+Peak Season,病例峰值季节,春季,Season | 季节,Season with most cases,病例数最高的季节

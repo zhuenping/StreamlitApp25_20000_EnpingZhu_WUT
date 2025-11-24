@@ -1,0 +1,6 @@
+streamlit>=1.33.0
+pandas>=2.2.0
+numpy>=1.26.0
+plotly>=5.20.0
+chardet>=5.2.0  # 自动检测文件编码
+pyarrow>=15.0.0  # 高效数据存储streamlit>=1.33.0
