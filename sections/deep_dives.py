@@ -1,12 +1,13 @@
 """
 Complete Deep Dives Page | 完整深度分析页面
 - Region-SES-Season Analysis | 区域-SES-季节分析
-- Vaccine Effect Analysis | 疫苗效果分析（解决“66+岁不显示”问题）
+- Vaccine Effect Analysis | 疫苗效果分析（解决"66+岁不显示"问题）
 - Interactive Data Exploration | 交互式数据探索
 """
 import streamlit as st
 import pandas as pd
-from utils.viz import bar_chart_region_ses, scatter_chart_vaccine_effect
+import plotly.express as px  # 添加这行导入
+from utils.viz import bar_chart_region_ses, scatter_chart_vaccine_effect, bar_chart_vaccine_effect
 
 def render_deep_dives(analysis_tables: dict):
     """渲染深度分析页面（使用过滤后的数据）"""
@@ -58,29 +59,55 @@ def render_deep_dives(analysis_tables: dict):
         
         # 核心洞察解读
         st.markdown("#### Key Insights | 核心洞察")
-        if selected_metric == "daily_new_cases":
-            st.markdown("""
-            - **High-Risk Scenario | 高风险场景**: Rural + Low SES + Winter has the highest new cases (~12,000), 2.3x higher than Urban + High SES + Winter (~5,200).
-              **高风险场景**：农村+低SES+冬季新增病例最高（~1.2万例），是城市+高SES+冬季（~5200例）的2.3倍。
-            - **Seasonal Impact | 季节影响**: Winter cases are 1.8x higher than Summer across all regions/SES.
-              **季节影响**：所有区域/SES中，冬季病例数是夏季的1.8倍。
-            """)
-        elif selected_metric == "vaccine_coverage":
-            st.markdown("""
-            - **Coverage Gap | 覆盖率缺口**: High SES regions have >75% coverage, while Low SES regions have <45% (Rural Low SES: ~35%).
-              **覆盖率缺口**：高SES区域覆盖率>75%，低SES区域<45%（农村低SES：~35%）。
-            - **Regional Disparity | 区域差异**: Urban areas have 10-15% higher coverage than Rural areas for the same SES.
-              **区域差异**：相同SES下，城市覆盖率比农村高10-15%。
-            """)
-        elif selected_metric == "resource_load":
-            st.markdown("""
-            - **Resource Shortage | 资源短缺**: Rural Low SES has the highest load (~1.8), meaning 80% of hospitalization needs are unmet.
-              **资源短缺**：农村低SES资源负荷最高（~1.8），80%住院需求无法满足。
-            - **Sufficient Resources | 资源充足**: Urban High SES has the lowest load (~0.6), indicating excess capacity.
-              **资源充足**：城市高SES资源负荷最低（~0.6），存在冗余容量。
-            """)
+        
+        # 动态计算洞察数据
+        if not region_ses_table.empty:
+            # 找出最大值和最小值组合
+            max_value_row = region_ses_table.loc[region_ses_table[selected_metric].idxmax()]
+            min_value_row = region_ses_table.loc[region_ses_table[selected_metric].idxmin()]
+            
+            # 季节性比较
+            winter_data = region_ses_table[region_ses_table["season"] == "Winter"][selected_metric].mean()
+            summer_data = region_ses_table[region_ses_table["season"] == "Summer"][selected_metric].mean()
+            season_ratio = winter_data / summer_data if summer_data != 0 else 1
+            
+            if selected_metric == "daily_new_cases":
+                st.markdown(f"""
+                - **High-Risk Scenario | 高风险场景**: {max_value_row['location']} + {max_value_row['ses']} SES + {max_value_row['season']}的病例数最高 ({max_value_row[selected_metric]:,.0f})，比{min_value_row['location']} + {min_value_row['ses']} SES + {min_value_row['season']}高{max_value_row[selected_metric]/min_value_row[selected_metric]:.1f}倍。
+                - **Seasonal Impact | 季节影响**: 在所有区域/SES中，{max_value_row['season']}的病例数比{min_value_row['season']}高{season_ratio:.1f}倍。
+                """)
+            elif selected_metric == "vaccine_coverage":
+                high_ses_avg = region_ses_table[region_ses_table["ses"] == "High"][selected_metric].mean()
+                low_ses_avg = region_ses_table[region_ses_table["ses"] == "Low"][selected_metric].mean()
+                coverage_diff = high_ses_avg - low_ses_avg
+                st.markdown(f"""
+                - **Coverage Gap | 覆盖率缺口**: High SES areas have a coverage rate of {high_ses_avg:.1%}, while low SES areas have {low_ses_avg:.1%}, with a gap of {coverage_diff:.1%}. | 高SES区域覆盖率为{high_ses_avg:.1%}，低SES区域为{low_ses_avg:.1%}，差距为{coverage_diff:.1%}。
+                - **Regional Disparity | 区域差异**: {max_value_row['location']} area has the highest coverage rate ({max_value_row[selected_metric]:.1%}), while {min_value_row['location']} area has the lowest ({min_value_row[selected_metric]:.1%}). | {max_value_row['location']}地区覆盖率最高 ({max_value_row[selected_metric]:.1%})，而{min_value_row['location']}地区最低 ({min_value_row[selected_metric]:.1%})。
+                """)
+            elif selected_metric == "resource_load":
+                st.markdown(f"""
+                - **Resource Shortage | 资源短缺**: {max_value_row['location']} + {max_value_row['ses']} SES has the highest resource load ({max_value_row[selected_metric]:.2f}), indicating significant resource pressure. | {max_value_row['location']} + {max_value_row['ses']} SES资源负荷最高 ({max_value_row[selected_metric]:.2f})，表明资源压力显著。
+                - **Sufficient Resources | 资源充足**: {min_value_row['location']} + {min_value_row['ses']} SES has the lowest resource load ({min_value_row[selected_metric]:.2f}), indicating excess capacity. | {min_value_row['location']} + {min_value_row['ses']} SES资源负荷最低 ({min_value_row[selected_metric]:.2f})，表明容量过剩。
+                """)
+        else:
+            # 默认洞察（无数据时显示） | Default insights (when no data)
+            if selected_metric == "daily_new_cases":
+                st.markdown("""
+                - **High-Risk Scenario | 高风险场景**: Rural + Low SES + Winter typically has the highest number of cases. | 农村+低SES+冬季通常病例数最高。
+                - **Seasonal Impact | 季节影响**: In all regions/SES, winter cases are typically higher than summer cases. | 在所有区域/SES中，冬季病例数通常高于夏季。
+                """)
+            elif selected_metric == "vaccine_coverage":
+                st.markdown("""
+                - **Coverage Gap | 覆盖率缺口**: High SES areas typically have higher coverage rates than low SES areas. | 高SES区域通常比低SES区域覆盖率高。
+                - **Regional Disparity | 区域差异**: Urban areas typically have higher coverage rates than rural areas. | 城市地区通常比农村地区覆盖率高。
+                """)
+            elif selected_metric == "resource_load":
+                st.markdown("""
+                - **Resource Shortage | 资源短缺**: Rural low SES typically has the highest resource load. | 农村低SES通常资源负荷最高。
+                - **Sufficient Resources | 资源充足**: Urban high SES typically has the lowest resource load. | 城市高SES通常资源负荷最低。
+                """)
     else:
-        # 无数据时显示警告
+        # 无数据时显示警告 | Show warning when no data available
         st.warning("❌ No data available for Region×SES×Season analysis. Adjust filters in the sidebar. | 区域×SES×季节分析无数据，请在侧边栏调整过滤器。")
     
     st.divider()
@@ -98,25 +125,61 @@ def render_deep_dives(analysis_tables: dict):
     required_fields = ["vaccination_status", "immunity_level", "age_group", "daily_new_cases", "transmission_rate"]
     
     if not vaccine_effect_table.empty and all(field in vaccine_effect_table.columns for field in required_fields):
-        # 调用可视化函数（解决“66+岁不显示”问题）
-        vaccine_effect_chart = scatter_chart_vaccine_effect(vaccine_effect_table)
+        # 调用可视化函数
+        vaccine_effect_chart = bar_chart_vaccine_effect(vaccine_effect_table)
         st.plotly_chart(vaccine_effect_chart, use_container_width=True)
         
         # 计算关键指标（支撑洞察解读）
-        # 已接种vs未接种的平均病例数
-        vaccinated_avg = vaccine_effect_table[vaccine_effect_table["vaccination_status"] == "Vaccinated"]["daily_new_cases"].mean()
-        unvaccinated_avg = vaccine_effect_table[vaccine_effect_table["vaccination_status"] == "Unvaccinated"]["daily_new_cases"].mean()
-        # 风险降低率
-        risk_reduction = (unvaccinated_avg - vaccinated_avg) / unvaccinated_avg if unvaccinated_avg != 0 else 0
+        vaccinated_data = vaccine_effect_table[vaccine_effect_table["vaccination_status"] == "Vaccinated"]
+        unvaccinated_data = vaccine_effect_table[vaccine_effect_table["vaccination_status"] == "Unvaccinated"]
         
-        # 分年龄组分析
+        # 安全计算平均病例数
+        vaccinated_avg = vaccinated_data["daily_new_cases"].mean() if not vaccinated_data.empty else 0
+        unvaccinated_avg = unvaccinated_data["daily_new_cases"].mean() if not unvaccinated_data.empty else 0
+        
+        # 风险降低率计算（修复计算逻辑）
+        if unvaccinated_avg <= 0:
+            risk_reduction = 0
+            st.warning("⚠️ 数据异常：未接种组病例数为0或负数，无法计算准确的风险降低率。 | Warning: Abnormal data - unvaccinated cases are zero or negative, cannot calculate accurate risk reduction.")
+        elif vaccinated_avg > unvaccinated_avg * 1.05:  # 设置合理阈值，避免微小差异触发警告
+            risk_reduction = (unvaccinated_avg - vaccinated_avg) / unvaccinated_avg
+            st.warning(f"⚠️ 数据异常：已接种组病例数({vaccinated_avg:.1f})高于未接种组({unvaccinated_avg:.1f})。请检查数据质量或考虑其他影响因素。 | Warning: Abnormal data - vaccinated cases higher than unvaccinated, possible data error or other influencing factors.")
+        else:
+            risk_reduction = (unvaccinated_avg - vaccinated_avg) / unvaccinated_avg
+        
+        # 分年龄组分析 - 动态计算各年龄组的风险降低率
         age_group_stats = vaccine_effect_table.groupby("age_group").agg({
             "daily_new_cases": ["mean", "min", "max"]
         }).round(2)
         age_group_stats.columns = ["Average Cases | 平均病例", "Min Cases | 最少病例", "Max Cases | 最多病例"]
         
-        # 显示洞察
+        # 动态计算各年龄组的疫苗效果
+        age_group_effects = {}
+        for age_group in ["Child (0-18)", "Adult (19-65)", "Elderly (66+)"]:
+            age_group_data = vaccine_effect_table[vaccine_effect_table["age_group"] == age_group]
+            if not age_group_data.empty:
+                vac_data = age_group_data[age_group_data["vaccination_status"] == "Vaccinated"]
+                unvac_data = age_group_data[age_group_data["vaccination_status"] == "Unvaccinated"]
+                
+                vac_cases = vac_data["daily_new_cases"].mean() if not vac_data.empty else 0
+                unvac_cases = unvac_data["daily_new_cases"].mean() if not unvac_data.empty else 0
+                
+                age_group_effect = ((unvac_cases - vac_cases) / unvac_cases * 100) if unvac_cases != 0 else 0
+                age_group_effects[age_group] = age_group_effect
+        
+        # 免疫协同作用分析 - 动态计算最低和最高风险组
+        if not vaccine_effect_table.empty:
+            lowest_risk_group = vaccine_effect_table.sort_values("daily_new_cases").iloc[0]
+            highest_risk_group = vaccine_effect_table.sort_values("daily_new_cases", ascending=False).iloc[0]
+        else:
+            # 设置默认值避免错误
+            lowest_risk_group = pd.Series({"immunity_level": "High", "vaccination_status": "Vaccinated", "daily_new_cases": 0})
+            highest_risk_group = pd.Series({"immunity_level": "Low", "vaccination_status": "Unvaccinated", "daily_new_cases": 0})
+        
+        # 显示洞察 | Display insights
         st.markdown("#### Key Insights | 核心洞察")
+        
+        # 确保显示核心洞察内容
         st.markdown(f"""
         1. **Overall Vaccine Protection | 整体疫苗保护**:
            - Vaccinated individuals: {vaccinated_avg:.1f} cases/day | 已接种者：{vaccinated_avg:.1f}例/天
@@ -124,13 +187,13 @@ def render_deep_dives(analysis_tables: dict):
            - Risk reduction: **{risk_reduction:.0%}** | 风险降低：**{risk_reduction:.0%}**
         
         2. **Age-Group Specificity | 年龄组特异性（含66+岁）**:
-           - Elderly (66+): Highest baseline risk, but vaccine reduces risk by ~65% | 66+岁老人：基础风险最高，但疫苗降低风险~65%
-           - Adults (19-65): Risk reduction ~40% | 19-65岁成人：风险降低~40%
-           - Children (0-18): Lowest baseline risk, vaccine reduces risk by ~35% | 0-18岁儿童：基础风险最低，疫苗降低风险~35%
+           - Elderly (66+): Vaccine reduces risk by **{age_group_effects.get('Elderly (66+)', 0):.0f}%** | 66+岁老人：疫苗降低风险**{age_group_effects.get('Elderly (66+)', 0):.0f}%**
+           - Adults (19-65): Vaccine reduces risk by **{age_group_effects.get('Adult (19-65)', 0):.0f}%** | 19-65岁成人：疫苗降低风险**{age_group_effects.get('Adult (19-65)', 0):.0f}%**
+           - Children (0-18): Vaccine reduces risk by **{age_group_effects.get('Child (0-18)', 0):.0f}%** | 0-18岁儿童：疫苗降低风险**{age_group_effects.get('Child (0-18)', 0):.0f}%**
         
         3. **Immunity Synergy | 免疫协同作用**:
-           - High Immunity + Vaccination: Lowest risk (e.g., Elderly: ~2.1 cases/day) | 高免疫+接种：风险最低（如老人：~2.1例/天）
-           - Low Immunity + Unvaccination: Highest risk (e.g., Elderly: ~12.3 cases/day) | 低免疫+未接种：风险最高（如老人：~12.3例/天）
+           - Lowest Risk: {lowest_risk_group['immunity_level']} Immunity + {lowest_risk_group['vaccination_status']} with {lowest_risk_group['daily_new_cases']:.1f} cases/day | 最低风险：{lowest_risk_group['immunity_level']}免疫+{lowest_risk_group['vaccination_status']}，{lowest_risk_group['daily_new_cases']:.1f}例/天
+           - Highest Risk: {highest_risk_group['immunity_level']} Immunity + {highest_risk_group['vaccination_status']} with {highest_risk_group['daily_new_cases']:.1f} cases/day | 最高风险：{highest_risk_group['immunity_level']}免疫+{highest_risk_group['vaccination_status']}，{highest_risk_group['daily_new_cases']:.1f}例/天
         """)
         
         # 显示分年龄组统计表格
@@ -150,7 +213,7 @@ def render_deep_dives(analysis_tables: dict):
     st.markdown("### 3. Interactive Data Exploration | 交互式数据探索")
     st.markdown("""
     Filter data by region, SES, and season to validate your hypotheses (e.g., "Are Winter Rural Low SES cases the highest?").
-    按区域、SES、季节过滤数据，验证您的假设（如“冬季农村低SES病例是否最高？”）。
+    按区域、SES、季节过滤数据，验证您的假设（如"冬季农村低SES病例是否最高？"）。
     """)
     
     # 获取区域-SES表（用于交互式过滤）
@@ -223,12 +286,13 @@ def render_deep_dives(analysis_tables: dict):
         st.markdown("#### Exploration Tips | 探索提示")
         st.markdown("""
         - **Hypothesis 1 | 假设1**: Select "Rural + Low SES + Winter" → Verify if cases are the highest (~12,000).
-          选择“农村+低SES+冬季”→验证病例数是否最高（~1.2万例）。
+          选择"农村+低SES+冬季"→验证病例数是否最高（~1.2万例）。
         - **Hypothesis 2 | 假设2**: Select "Urban + High SES + Summer" → Verify if resource load is the lowest (~0.6).
-          选择“城市+高SES+夏季”→验证资源负荷是否最低（~0.6）。
+          选择"城市+高SES+夏季"→验证资源负荷是否最低（~0.6）。
         - **Hypothesis 3 | 假设3**: Compare "High SES vs Low SES" → Verify if vaccine coverage differs by ~30%.
-          对比“高SES vs 低SES”→验证疫苗覆盖率差异是否约30%。
+          对比"高SES vs 低SES"→验证疫苗覆盖率差异是否约30%。
         """)
     else:
         # 无数据时显示警告
         st.warning("❌ No data available for interactive exploration. Adjust filters in the sidebar. | 无交互式探索数据，请在侧边栏调整过滤器。")
+    # 交互式数据探索模块结束

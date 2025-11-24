@@ -47,7 +47,7 @@ def clean_raw_data(raw_df: pd.DataFrame) -> pd.DataFrame:
     for field in binary_fields:
         # 转为数值类型，无效值转为NaN
         clean_df[field] = pd.to_numeric(clean_df[field], errors="coerce")
-        # 填充缺失值为0（默认“未患病”/“未接种”）
+        # 填充缺失值为0（默认"未患病"/"未接种"）
         clean_df[field] = clean_df[field].fillna(0).astype(int)
         # 过滤非0/1值
         invalid_val_count = len(clean_df[~clean_df[field].isin([0, 1])])
@@ -105,6 +105,7 @@ def clean_raw_data(raw_df: pd.DataFrame) -> pd.DataFrame:
     print(f"Cleaned Data: {len(clean_df)} rows × {len(clean_df.columns)} columns | 清洗后数据：{len(clean_df)}行 × {len(clean_df.columns)}列")
     return clean_df
 
+# 在create_business_features函数中修改resource_load计算
 def create_business_features(clean_df: pd.DataFrame) -> pd.DataFrame:
     """特征工程：生成业务所需特征（支撑可视化分析）"""
     feature_df = clean_df.copy()
@@ -145,10 +146,22 @@ def create_business_features(clean_df: pd.DataFrame) -> pd.DataFrame:
     print("✅ Vaccine coverage feature generated | 生成疫苗覆盖率特征")
     
     # 4. 医疗资源负荷特征（支撑资源紧张度分析）
-    feature_df["resource_load"] = (feature_df["hospitalization_requirement"] / feature_df["hospital_capacity"])
+    # 优化：优先使用数据中的实际值，添加安全检查，确保计算准确性
+    if "resource_utilization" in feature_df.columns and not feature_df["resource_utilization"].isnull().all():
+        # 如果数据中已有资源利用率字段且不全为空，直接使用并标准化到合理范围
+        feature_df["resource_load"] = np.clip(feature_df["resource_utilization"] / 100, 0, 5)  # 确保范围在0-5之间
+        print("✅ Resource load feature generated from existing resource_utilization | 从现有字段生成资源负荷特征")
+    else:
+        # 否则使用住院需求/医院容量的计算
+        # 添加安全检查，避免除以0
+        feature_df["resource_load"] = np.where(
+            feature_df["hospital_capacity"] > 0,  # 安全检查
+            feature_df["hospitalization_requirement"] / feature_df["hospital_capacity"],
+            0  # 默认值
+        )
     # 保留3位小数，限制最大值为5（避免极端值影响）
     feature_df["resource_load"] = np.round(feature_df["resource_load"], 3).clip(upper=5)
-    print("✅ Resource load feature generated | 生成资源负荷特征（住院需求/医院容量）")
+    print(f"✅ Resource load feature generated | 生成资源负荷特征：平均值={feature_df['resource_load'].mean():.3f}，范围={feature_df['resource_load'].min():.3f}-{feature_df['resource_load'].max():.3f}")
     
     # 5. 传播率特征（季节维度，支撑传播趋势分析）
     season_transmission_mapping = {"Winter": 1.2, "Spring": 0.9, "Summer": 0.6, "Autumn": 0.8}
@@ -161,6 +174,7 @@ def create_business_features(clean_df: pd.DataFrame) -> pd.DataFrame:
     print(f"Feature Data: {len(feature_df)} rows × {len(feature_df.columns)} columns | 特征后数据：{len(feature_df)}行 × {len(feature_df.columns)}列")
     return feature_df
 
+# 在generate_analysis_tables函数中修改region_ses_table生成
 def generate_analysis_tables(feature_df: pd.DataFrame, year_filter: list, region_filter: list) -> Dict[str, pd.DataFrame]:
     """生成分析表（集成过滤器，应用年份和区域筛选）"""
     analysis_tables = {}
@@ -180,12 +194,18 @@ def generate_analysis_tables(feature_df: pd.DataFrame, year_filter: list, region
         raise ValueError("❌ No data left after filtering! Adjust filter criteria | 过滤后无数据！请调整过滤条件")
     
     # 1. 时间序列表（年-月-区域维度，支撑概览页趋势图）
+    # 修改generate_analysis_tables函数中的timeseries_table生成部分
     timeseries_table = filtered_df.groupby(["year", "month", "location"]).agg({
-        "daily_new_cases": "sum",          # 月新增病例总数
-        "transmission_rate": "mean",       # 月平均传播率
-        "vaccine_coverage": "mean",         # 月平均疫苗覆盖率
-        "resource_load": "mean"            # 月平均资源负荷
+    "daily_new_cases": "sum",          # 月新增病例总数
+    "transmission_rate": "mean",       # 月平均传播率
+    "vaccine_coverage": "mean",         # 月平均疫苗覆盖率
+    "resource_load": "mean"            # 月平均资源负荷
     }).reset_index().sort_values(["year", "month", "location"])
+    
+    # 添加缺失的date列
+    timeseries_table["date"] = pd.to_datetime(
+    timeseries_table["year"].astype(str) + '-' + timeseries_table["month"].astype(str) + '-01'
+    )
     analysis_tables["timeseries"] = timeseries_table
     print(f"✅ Time series table generated: {len(timeseries_table)} rows | 生成时间序列表：{len(timeseries_table)}行")
     
@@ -196,6 +216,11 @@ def generate_analysis_tables(feature_df: pd.DataFrame, year_filter: list, region
         "resource_load": "mean",            # 季节平均资源负荷
         "age": "median"                    # 季节年龄中位数
     }).reset_index()
+    
+    # 添加样本量列，用于参考
+    sample_size = filtered_df.groupby(["location", "ses", "season"]).size().reset_index(name="sample_size")
+    region_ses_table = pd.merge(region_ses_table, sample_size, on=["location", "ses", "season"])
+    
     analysis_tables["region_ses"] = region_ses_table
     print(f"✅ Region-SES table generated: {len(region_ses_table)} rows | 生成区域-SES表：{len(region_ses_table)}行")
     
@@ -216,14 +241,9 @@ def generate_analysis_tables(feature_df: pd.DataFrame, year_filter: list, region
     analysis_tables["vaccine_effect"] = vaccine_effect_table
     print(f"✅ Vaccine effect table generated: {len(vaccine_effect_table)} rows | 生成疫苗效果表：{len(vaccine_effect_table)}行")
     
-    # 4. KPI表（全局核心指标，支撑概览页指标卡）
+    # 4. KPI表（全局核心指标，支撑概览页指标卡） - 移除高危人群统计
     total_cases = filtered_df["daily_new_cases"].sum()
     avg_vaccine_coverage = np.round(filtered_df["vaccine_coverage"].fillna(0).mean(), 3)
-    # 高危人群：66+岁且有慢性病
-    high_risk_population = len(filtered_df[
-        (filtered_df["age_group"] == "Elderly (66+)") & 
-        (filtered_df["chronic_conditions"] == 1)
-    ])
     avg_resource_load = np.round(filtered_df["resource_load"].fillna(0).mean(), 3)
     # 高峰季节病例数（单季节最大病例数）
     peak_season_cases = filtered_df.groupby("season")["daily_new_cases"].sum().max() if not filtered_df.empty else 0
@@ -232,22 +252,19 @@ def generate_analysis_tables(feature_df: pd.DataFrame, year_filter: list, region
         "metric": [
             "Total Cases | 总病例数",
             "Average Vaccine Coverage | 平均疫苗覆盖率",
-            "High-Risk Population (Elderly + Chronic) | 高危人群（老人+慢性病）",
             "Average Resource Load | 平均资源负荷",
             "Peak Season Cases | 高峰季节病例数"
         ],
-        "value": [total_cases, avg_vaccine_coverage, high_risk_population, avg_resource_load, peak_season_cases],
+        "value": [total_cases, avg_vaccine_coverage, avg_resource_load, peak_season_cases],
         "unit": [
             "Cases | 例",
             "Ratio | 比例",
-            "Persons | 人",
             "Ratio | 比例",
             "Cases | 例"
         ],
         "description": [
             "Total new cases in filtered data | 过滤后数据中的总新增病例数",
             "Average vaccination rate across regions/years | 所有区域/年份的平均疫苗接种率",
-            "Number of people aged 66+ with chronic conditions | 66岁以上且有慢性病的人数",
             "Average ratio of hospitalization requirement to capacity | 住院需求与医院容量的平均比例",
             "Maximum number of cases in any season | 任意季节的最大病例数"
         ]
@@ -263,11 +280,8 @@ def generate_analysis_tables(feature_df: pd.DataFrame, year_filter: list, region
     print(f"Total tables generated: {len(analysis_tables)} | 共生成{len(analysis_tables)}个分析表")
     return analysis_tables
 
-def get_processed_data(
-    year_filter: list = None,  # 新增默认值：None表示不过滤年份
-    region_filter: list = None  # 新增默认值：None表示不过滤区域
-) -> Tuple[pd.DataFrame, Dict[str, pd.DataFrame]]:
-    """端到端数据处理入口（为过滤参数添加默认值，解决参数缺失问题）"""
+# 在数据处理流程中，确保为时间序列数据创建必要的时间列
+def get_processed_data(year_filter=None, region_filter=None):
     try:
         # 步骤1：加载原始数据
         raw_data = load_raw_dataset()
