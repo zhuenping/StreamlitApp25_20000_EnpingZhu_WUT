@@ -1,14 +1,14 @@
 """
-项目介绍页面（正常完整版）
+项目介绍页面（含GitHub链接完整版）
 - 完整叙事钩子：背景→目标→数据说明→导航
 - 符合高分项目的透明性要求
-- 新增：个人所属院校Logo展示（武汉理工大学 + EFREI Paris）
+- 包含：个人所属院校Logo展示 + GitHub仓库链接
 """
 import streamlit as st
 from utils.io import get_data_caveats
 
 def render_intro():
-    """渲染完整项目介绍页面（含个人所属院校Logo）"""
+    """渲染完整项目介绍页面（含院校Logo和GitHub链接）"""
     # 1. 标题与钩子（吸引注意力）
     st.title("Public Health Surveillance Dashboard: Tracking Disease Trends & Vaccine Impact")
     st.subheader("公共卫生监测仪表盘：追踪疾病趋势与疫苗影响")
@@ -58,7 +58,7 @@ def render_intro():
     st.markdown("### 3. Dataset Overview | 数据集概览")
     st.markdown(get_data_caveats())
     
-    # 5. 导航指引（用户旅程，提升体验）
+    # 5. 导航指引（用户旅程，新增GitHub链接）
     st.markdown("### 4. Dashboard Navigation | 仪表盘导航")
     st.markdown("""
     Use the sidebar to filter data and explore four core sections:
@@ -74,34 +74,41 @@ def render_intro():
       **结论**：核心洞察总结和基于证据的政策建议，将数据转化为行动。
     """)
     
-    # 6. 个人所属院校Logo展示（核心修改：突出个人关联，非合作）
-    st.divider()
-    st.markdown("### 🏫 Affiliation | 所属院校")
+    # 新增：GitHub仓库链接按钮（放在导航下方，显眼且符合用户流程）
+    st.link_button(
+        label="📂 View Source Code on GitHub | 查看GitHub源码",
+        url="https://github.com/zhuenping/StreamlitApp25_20000_EnpingZhu_WUT",
+        use_container_width=True  # 按钮宽度适应容器，提升视觉效果
+    )
     
-    # 分栏展示两所院校Logo（居中对齐，大小统一，符合个人多院校关联场景）
-    col1, col2 = st.columns(2, gap="large")
-    with col1:
-        st.image(
-            "assets/wut_logo.png",  # 武汉理工大学Logo路径
-            caption="Wuhan University of Technology | 武汉理工大学",
-            width=250,  # 统一宽度，保持美观
-            use_column_width=False
-        )
-    with col2:
-        st.image(
-            "assets/efrei_logo.png",  # EFREI Paris Logo路径
-            caption="EFREI Paris | 法国巴黎电子与信息工程学院",
-            width=250,
-            use_column_width=False
-        )
+    # 6. 个人所属院校Logo展示 - 已移至侧边栏
+    # st.divider()
+    # st.markdown("### 🏫 Affiliation | 所属院校")
     
-    # 原有项目信息（保持不变，放在Logo下方）
+    # 分栏展示两所院校Logo - 已移至侧边栏
+    # col1, col2 = st.columns(2, gap="large")
+    # with col1:
+    #     st.image(
+    #         "assets/wut_logo.png",  # 武汉理工大学Logo路径
+    #         caption="Wuhan University of Technology | 武汉理工大学",
+    #         width=250,
+    #         use_container_width=False
+    #     )
+    # with col2:
+    #     st.image(
+    #         "assets/efrei_logo.png",  # EFREI Paris Logo路径
+    #         caption="EFREI Paris | 法国巴黎电子与信息工程学院",
+    #         width=250,
+    #         use_container_width=False
+    #     )
+    
+    # 项目信息（保持原有内容）
     st.divider()
     st.caption("""
     **Project Info | 项目信息**  
     Author | 作者：Zhu Enping  
     Mentor | 导师：Mano Joseph Mathew  
     Email | 邮箱：1305927014@qq.com  
-    Tags | 标签：#EFREIDataStoriesWUT2025 #EFREIParis #DataVisualization #Streamlit #DataStorytelling  
+    Tags | 标签：#EFREIDataStoriesWUT2025 #EFREIParis #DataVisualization #Streamlit #DataStorytelling #GitHub  
     License | 许可证：Academic Use Only（仅用于学术用途）
     """)

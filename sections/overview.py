@@ -5,34 +5,48 @@ import streamlit as st
 import pandas as pd
 from utils.viz import line_chart_timeseries, get_data_quality_chart
 
+# 修改这两个函数
 def _get_kpi_value(kpi_df: pd.DataFrame, metric_name: str, default: float = 0.0) -> float:
     """
-    安全获取KPI数值（避免索引越界）
-    Safe get KPI value (avoid IndexError)
-    
-    Args:
-        kpi_df: KPI数据框
-        metric_name: 指标名称
-        default: 默认值
-    
-    Returns:
-        指标数值（存在则返回对应值，否则返回默认值）
+    安全获取KPI数值（支持模糊匹配，处理中英文双语指标名）
+    Safe get KPI value with fuzzy matching support
     """
     if kpi_df.empty or 'metric' not in kpi_df.columns or 'value' not in kpi_df.columns:
         return default
-    # 筛选对应指标行（使用loc避免链式索引风险）
-    metric_row = kpi_df.loc[kpi_df['metric'] == metric_name]
+    
+    # 使用模糊匹配查找包含指定关键词的指标
+    # 转换为字符串并使用case=False进行大小写不敏感匹配
+    metric_row = kpi_df[kpi_df['metric'].astype(str).str.contains(metric_name, case=False)]
+    
+    # 如果找不到，尝试精确匹配（兼容不同格式）
+    if metric_row.empty:
+        metric_row = kpi_df.loc[kpi_df['metric'] == metric_name]
+    
     return metric_row['value'].iloc[0] if not metric_row.empty else default
 
 def _get_kpi_description(kpi_df: pd.DataFrame, metric_name: str, default: str = "No description available | 无描述信息") -> str:
     """
-    安全获取KPI描述（避免索引越界）
-    Safe get KPI description (avoid IndexError)
+    安全获取KPI描述（支持模糊匹配）
+    Safe get KPI description with fuzzy matching support
     """
     if kpi_df.empty or 'metric' not in kpi_df.columns or 'description' not in kpi_df.columns:
         return default
-    metric_row = kpi_df.loc[kpi_df['metric'] == metric_name]
-    return metric_row['description'].iloc[0] if not metric_row.empty else default
+    
+    # 使用模糊匹配查找包含指定关键词的指标
+    metric_row = kpi_df[kpi_df['metric'].astype(str).str.contains(metric_name, case=False)]
+    
+    # 如果找不到，尝试精确匹配
+    if metric_row.empty:
+        metric_row = kpi_df.loc[kpi_df['metric'] == metric_name]
+    
+    # 优先返回description列的值，如果不存在则返回metric列的值作为描述
+    if not metric_row.empty:
+        if 'description' in metric_row.columns and pd.notna(metric_row['description'].iloc[0]):
+            return metric_row['description'].iloc[0]
+        elif 'metric' in metric_row.columns:
+            return metric_row['metric'].iloc[0]
+    
+    return default
 
 def render_overview(analysis_tables: dict, raw_clean_df: pd.DataFrame):
     st.title("Overview | 概览")

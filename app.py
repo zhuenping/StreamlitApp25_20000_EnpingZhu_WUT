@@ -13,7 +13,18 @@ st.set_page_config(
 
 # 侧边栏核心功能：过滤器 + 页面导航
 with st.sidebar:
-    # 1. 数据过滤器（年份+区域，解决“过滤器无作用”问题）
+    # 添加学校图标到侧边栏顶部
+    st.image(
+        "assets/wut_logo.png",  # 武汉理工大学Logo路径
+        use_container_width=True  # 自适应侧边栏宽度
+    )
+    st.image(
+        "assets/efrei_logo.png",  # EFREI Paris Logo路径
+        use_container_width=True  # 自适应侧边栏宽度
+    )
+    st.divider()
+    
+    # 1. 数据过滤器（年份+区域，解决"过滤器无作用"问题）
     st.title("Data Filters | 数据过滤器")
     st.markdown("Filter data by time and region to focus on specific scenarios. | 按时间和区域过滤数据，聚焦特定场景。")
     
