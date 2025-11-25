@@ -72,8 +72,8 @@ def render_overview(analysis_tables: dict, raw_clean_df: pd.DataFrame):
         st.text(f"可用KPI指标：{kpi_df['metric'].tolist() if not kpi_df.empty else '无'}")
     
     # KPI卡片布局
-    col1, col2, col3 = st.columns(3)
-    col4, col5 = st.columns(2)
+    col1, col2 = st.columns(2)
+    col3, col4 = st.columns(2)
     
     # 1. 总病例数
     col1.metric(
@@ -89,23 +89,15 @@ def render_overview(analysis_tables: dict, raw_clean_df: pd.DataFrame):
         help=_get_kpi_description(kpi_df, 'Average Vaccine Coverage')
     )
     
-    # 3. 高危人群数量
-    high_risk_metric = "High-Risk Population (Elderly + Chronic)"
-    col3.metric(
-        label="High-Risk Population\n高危人群数量",
-        value=f"{_get_kpi_value(kpi_df, high_risk_metric):,.0f}",
-        help=_get_kpi_description(kpi_df, high_risk_metric)
-    )
-    
     # 4. 平均资源负荷
-    col4.metric(
+    col3.metric(
         label="Average Resource Load\n平均资源负荷",
         value=f"{_get_kpi_value(kpi_df, 'Average Resource Load'):.2f}",
         help=_get_kpi_description(kpi_df, 'Average Resource Load')
     )
     
     # 5. 高峰季节病例数
-    col5.metric(
+    col4.metric(
         label="Peak Season Cases\n高峰季节病例数",
         value=f"{_get_kpi_value(kpi_df, 'Peak Season Cases'):,.0f}",
         help=_get_kpi_description(kpi_df, 'Peak Season Cases')
